@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, FileText, Edit2, Trash2, Check, X, LogOut } from 'lucide-react';
+import { Plus, Search, FileText, Edit2, Trash2, Check, X } from 'lucide-react';
 
 export default function Sidebar({ 
   chats, 
@@ -8,7 +8,7 @@ export default function Sidebar({
   onNewUpload,
   onRenameChat,
   onDeleteChat,
-  onLogout
+  
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingChatId, setEditingChatId] = useState(null);
@@ -165,16 +165,7 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* Bottom Logout Button */}
-      <div className="p-3 border-t border-slate-800 shrink-0">
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition text-sm font-medium"
-        >
-          <LogOut className="w-4 h-4 shrink-0 text-red-400" />
-          <span>Logout</span>
-        </button>
-      </div>
+      
     </aside>
   );
 }
