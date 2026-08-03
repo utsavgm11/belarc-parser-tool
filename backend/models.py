@@ -2,6 +2,19 @@ import uuid
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON, func
 from database import Base
 
+class User(Base):
+    """
+    Represents a system user account for authentication and audit activity tracking.
+    """
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String, unique=True, index=True, nullable=False)
+    password = Column(String, nullable=False)
+    full_name = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Chat(Base):
     """
     Represents an audit upload session ('Chat' in the UI).
@@ -16,6 +29,7 @@ class Chat(Base):
     processed_files = Column(Integer, default=0)
     uploaded_by = Column(String, default="IT Team")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class ParsedRecord(Base):
     """

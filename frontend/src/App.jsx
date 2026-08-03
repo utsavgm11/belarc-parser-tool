@@ -1,13 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
+import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import FolderUploader from './components/FolderUploader';
 import ProcessingProgress from './components/ProcessingProgress';
 import DataPreviewTable from './components/DataPreviewTable';
+import { LogOut, UserCircle } from 'lucide-react';
 
 const API_URL = 'http://127.0.0.1:8000';
-const CURRENT_USER = 'IT Admin'; // You can change this or hook it up to a login later
 
 export default function App() {
+  // 1. Initialize user state directly from localStorage (Fixes ESLint warning #1)
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('belarc_user');
+    if (savedUser) {
+      try {
+        return JSON.parse(savedUser);
+      } catch (err) {
+        console.error("Failed to parse saved user session:", err);
+        localStorage.removeItem('belarc_user');
+      }
+    }
+    return null;
+  });
+
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [currentView, setCurrentView] = useState('upload'); // 'upload', 'processing', 'results'
@@ -26,13 +41,40 @@ export default function App() {
     }
   }, []);
 
-  // Run once on load to populate sidebar
+  // 2. Fetch chats asynchronously on mount/user change (Fixes ESLint warning #2)
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchChats();
-  }, [fetchChats]);
+    if (!user) return;
+    
+    let isMounted = true;
+    const loadData = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/chats`);
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          setChats(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch chats:", err);
+      }
+    };
 
-  // Handlers
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  // Logout handler
+  const handleLogout = () => {
+    localStorage.removeItem('belarc_user');
+    setUser(null);
+    setActiveChatId(null);
+    setCurrentView('upload');
+    setActiveChatData([]);
+  };
+
+  // Handlers for navigation and chat management
   const handleNewUploadClick = () => {
     setActiveChatId(null);
     setCurrentView('upload');
@@ -96,7 +138,6 @@ export default function App() {
       });
 
       if (res.ok) {
-        // If the active chat was deleted, clear view and go back to upload screen
         if (activeChatId === chatId) {
           handleNewUploadClick();
         }
@@ -110,6 +151,12 @@ export default function App() {
   // Get active chat title for the table header
   const activeChatTitle = chats.find(c => c.id === activeChatId)?.title || '';
 
+  // 1. Render Login screen if user is not authenticated
+  if (!user) {
+    return <Login onLoginSuccess={(userData) => setUser(userData)} />;
+  }
+
+  // 2. Render Main Application Layout once authenticated
   return (
     <div className="flex h-screen w-screen bg-slate-950 text-slate-200 overflow-hidden font-sans">
       {/* Left Sidebar */}
@@ -125,8 +172,31 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col bg-[#0B1120] relative min-w-0">
         {/* Top Navbar area */}
-        <header className="h-14 border-b border-slate-800 flex items-center px-6 shrink-0 bg-slate-950/50 backdrop-blur-sm">
-          <h1 className="font-semibold text-slate-200 tracking-wide">Belarc Data Extraction Tool</h1>
+        <header className="h-14 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 bg-slate-950/50 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <h1 className="font-semibold text-slate-200 tracking-wide">Belarc Data Extraction Tool</h1>
+            <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-mono">
+              Aarviencon Internal
+            </span>
+          </div>
+
+          {/* User Status & Logout */}
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
+              <UserCircle className="w-4 h-4 text-blue-400" />
+              <span className="text-slate-300">
+                <strong className="text-white font-medium">{user.full_name}</strong>{' '}
+                <span className="text-slate-500">({user.email})</span>
+              </span>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition text-xs font-medium"
+            >
+              <LogOut className="w-3.5 h-3.5" /> Logout
+            </button>
+          </div>
         </header>
 
         {/* Dynamic Content View */}
@@ -135,7 +205,7 @@ export default function App() {
             <div className="flex-1 flex items-center justify-center">
               <FolderUploader 
                 onUploadSuccess={handleUploadSuccess} 
-                currentUser={CURRENT_USER} 
+                currentUser={user.full_name || user.email} 
               />
             </div>
           )}

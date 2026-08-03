@@ -1,5 +1,6 @@
 import io
 import zipfile
+import bcrypt
 import pandas as pd
 from typing import List
 
@@ -7,6 +8,7 @@ from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException, D
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 # Import rarfile safely for .rar support
 try:
@@ -34,6 +36,60 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- AUTHENTICATION SETUP ---
+
+# Schema matching the frontend Login payload
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+def hash_password(password: str) -> str:
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+
+# Seed initial default users into DB if empty
+@app.on_event("startup")
+def seed_default_users():
+    db = next(get_db())
+    try:
+        if db.query(models.User).count() == 0:
+            default_users = [
+                models.User(email="rahul@aarviencon.com", password=hash_password("Aarvien@Rahul123"), full_name="Rahul k"),
+                models.User(email="support@aarviencon.com", password=hash_password("Aarvien@Support123"), full_name="Yogesh"),
+                models.User(email="it.mumbai@aarviencon.com", password=hash_password("Aarvien@Mumbai123"), full_name="Anmol"),
+                models.User(email="yug.kakawat@aarviencon.com", password=hash_password("Aarvien@Yug123"), full_name="Yug Kakawat")
+            ]
+            db.add_all(default_users)
+            db.commit()
+            print("✅ Default Aarviencon users created with bcrypt hashed passwords.")
+    finally:
+        db.close()
+
+
+@app.post("/api/auth/login")
+def login(credentials: LoginRequest, db: Session = Depends(get_db)):
+    # Find user by email (case-insensitive)
+    user = db.query(models.User).filter(models.User.email == credentials.email.lower()).first()
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid Email or Password")
+
+    # Verify password against stored bcrypt hash
+    password_matches = bcrypt.checkpw(
+        credentials.password.encode('utf-8'), 
+        user.password.encode('utf-8')
+    )
+
+    if not password_matches:
+        raise HTTPException(status_code=401, detail="Invalid Email or Password")
+
+    return {
+        "email": user.email,
+        "full_name": user.full_name
+    }
 
 
 # --- RECURSIVE ARCHIVE EXTRACTOR WITH DIAGNOSTIC LOGGING ---
@@ -115,7 +171,6 @@ def process_zip_in_background(chat_id: str, zip_bytes: bytes):
         parsed_count = 0
 
         for idx, (file_path, content) in enumerate(html_files_data):
-            # UPDATE: We now keep the full folder/filename path for better context
             try:
                 extracted_data = parse_html_content(content)
                 records_batch.append(
@@ -261,9 +316,7 @@ def export_chat_data(chat_id: str, format: str = "excel", db: Session = Depends(
 
     df = pd.DataFrame(flattened_data)
 
-    # UPDATE: Sort DataFrame numerically by the trailing digits of Computer Name
     if "Computer Name" in df.columns:
-        # Extract the trailing number for sorting, fill with -1 if missing, sort, then drop the temp column
         df['temp_sort_num'] = df['Computer Name'].str.extract(r'(\d+)$').fillna(-1).astype(int)
         df = df.sort_values(by=['temp_sort_num', 'Computer Name'], ascending=[True, True]).drop(columns=['temp_sort_num'])
 
