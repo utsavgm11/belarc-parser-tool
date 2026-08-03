@@ -1,0 +1,23 @@
+# Python / Backend
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+*.sqlite3
+*.db
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+.npm
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Belarc Uploads (Don't push sensitive zip data!)
+*.zip
+*.rar
