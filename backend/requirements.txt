@@ -6,3 +6,5 @@ beautifulsoup4
 pandas
 openpyxl
 python-multipart
+lxml
+rarfile
